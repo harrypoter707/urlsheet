@@ -21,7 +21,7 @@ const WebhookGuide: React.FC = () => {
     },
     {
       title: "Open Apps Script",
-      description: "Go to the top menu, click Extensions > Apps Script. A new tab will open with a code editor.",
+      description: "Go to the top menu, click Extensions &gt; Apps Script. A new tab will open with a code editor.",
       icon: <Code className="text-indigo-500" size={24} />,
       color: "bg-indigo-50"
     },
@@ -33,7 +33,7 @@ const WebhookGuide: React.FC = () => {
     },
     {
       title: "Deploy as Web App",
-      description: "Click the blue 'Deploy' button > 'New Deployment'. Select 'Web App' as the type.",
+      description: "Click the blue 'Deploy' button &gt; 'New Deployment'. Select 'Web App' as the type.",
       icon: <Rocket className="text-blue-500" size={24} />,
       color: "bg-blue-50"
     },
@@ -99,7 +99,8 @@ const WebhookGuide: React.FC = () => {
         <ul className="text-xs text-slate-500 space-y-2 list-disc pl-5">
           <li>Always choose <span className="font-bold text-slate-700">"Anyone"</span> for access, otherwise the browser will block the request.</li>
           <li>If you change the code in Google Sheets, you must click <span className="font-bold text-slate-700">"New Deployment"</span> again to update the URL.</li>
-          <li>The script stores the URL in <span className="font-bold text-slate-700">Column B</span> and the Timestamp in <span className="font-bold text-slate-700">Column A</span>.</li>
+          <li>The script stores the <span className="font-bold text-slate-700">URL directly in Column A</span> for a clean list.</li>
+          <li>Duplicate protection scans Column A to prevent re-pasting the same link.</li>
         </ul>
       </div>
     </div>

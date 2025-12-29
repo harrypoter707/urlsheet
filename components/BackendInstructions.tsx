@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Copy, Check, Terminal, ExternalLink, ShieldCheck, Zap } from 'lucide-react';
 import { GOOGLE_APPS_SCRIPT_TEMPLATE } from '../constants';
@@ -31,27 +32,19 @@ const BackendInstructions: React.FC = () => {
         <div className="mb-6 space-y-4">
           <div className="flex gap-3">
             <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold shrink-0">1</div>
-            <p className="text-sm text-slate-600">
-              Open your Google Sheet and go to <strong>Extensions &gt; Apps Script</strong>.
-            </p>
+            <p className="text-sm text-slate-600">Open your Google Sheet and go to <strong>Extensions &gt; Apps Script</strong>.</p>
           </div>
           <div className="flex gap-3">
             <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold shrink-0">2</div>
-            <p className="text-sm text-slate-600">
-              Delete any existing code and <strong>paste the code above</strong>.
-            </p>
+            <p className="text-sm text-slate-600">Delete any existing code and <strong>paste the code above</strong>.</p>
           </div>
           <div className="flex gap-3">
             <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold shrink-0">3</div>
-            <p className="text-sm text-slate-600">
-              Click <strong>Deploy &gt; New Deployment</strong>. Select <strong>Web App</strong>.
-            </p>
+            <p className="text-sm text-slate-600">Click <strong>Deploy &gt; New Deployment</strong>. Select <strong>Web App</strong>.</p>
           </div>
           <div className="flex gap-3">
             <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold shrink-0">4</div>
-            <p className="text-sm text-slate-600">
-              Execute as <strong>'Me'</strong> and set Access to <strong>'Anyone'</strong>. Copy the URL provided.
-            </p>
+            <p className="text-sm text-slate-600">Execute as <strong>'Me'</strong> and set Access to <strong>'Anyone'</strong>. Copy the URL provided.</p>
           </div>
         </div>
 
