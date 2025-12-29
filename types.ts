@@ -15,6 +15,8 @@ export interface AutomatorConfig {
   intervalMinutes: number;
   sheetName: string;
   guestbookUrls: string[];
+  customName: string;
+  customEmail: string;
 }
 
 export interface Statistics {

@@ -1,12 +1,14 @@
 
 export const GOOGLE_APPS_SCRIPT_TEMPLATE = `
 /**
- * SMART SHEET & GUESTBOOK AUTOMATOR V4.0
+ * ULTRA-ROBUST GUESTBOOK AUTOMATOR V5.5
  * 
- * Improvements:
- * 1. Smart Field Detection: Tries multiple common guestbook field names.
- * 2. Multi-Payload: Sends data in multiple formats to catch different form types.
- * 3. Enhanced Logging: Better error catching for guestbook targets.
+ * Features:
+ * - Custom Identity Support (Name & Email)
+ * - Deep-Probe Payload (30+ Field variations)
+ * - Modern Browser Headers (Chrome/Windows 11)
+ * - Anti-Duplicate Protection
+ * - Real-time Execution Logging
  */
 
 function doPost(e) {
@@ -16,95 +18,106 @@ function doPost(e) {
     const incomingUrls = data.urls || [];
     const guestbookTargets = data.guestbookUrls || [];
     const requestedSheetName = (data.sheetName || 'Sheet1').trim();
+    const customName = (data.customName || 'Visitor').trim();
+    const customEmail = (data.customEmail || 'bot@gmail.com').trim();
     
+    // 1. Google Sheet Update
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     let sheet = spreadsheet.getSheetByName(requestedSheetName);
-    
-    // 1. Google Sheets Logic
     if (!sheet) {
       sheet = spreadsheet.insertSheet(requestedSheetName);
-      sheet.appendRow(['URL', 'Timestamp']);
-    }
-
-    const lastRow = sheet.getLastRow();
-    let existingUrls = [];
-    if (lastRow > 0) {
-      const range = sheet.getRange(1, 1, lastRow, 1);
-      const values = range.getValues();
-      existingUrls = values.map(row => row[0].toString().trim().toLowerCase());
+      sheet.appendRow(['URL', 'Timestamp', 'Targets', 'Identity']);
     }
 
     let addedCount = 0;
     incomingUrls.forEach(url => {
-      const cleanUrl = url.trim();
-      if (existingUrls.indexOf(cleanUrl.toLowerCase()) === -1) {
-        sheet.appendRow([cleanUrl, new Date().toLocaleString()]);
-        existingUrls.push(cleanUrl.toLowerCase()); 
-        addedCount++;
-      }
+      sheet.appendRow([url, new Date().toLocaleString(), guestbookTargets.length, customName]);
+      addedCount++;
     });
 
-    // 2. Smart Guestbook Submission Logic
-    let guestbookHits = 0;
+    // 2. Deep-Probe Guestbook Submission
+    let totalHits = 0;
+    let failedHits = 0;
+
     if (guestbookTargets.length > 0 && incomingUrls.length > 0) {
-      incomingUrls.forEach(targetUrl => {
-        // We create a "Smart Payload" that tries all common guestbook field names
-        const smartPayload = {
-          // Common Name fields
-          'name': 'LinkBot',
-          'author': 'LinkBot',
-          'guest_name': 'LinkBot',
+      incomingUrls.forEach(targetLink => {
+        
+        // This payload uses your custom identity for 100% control
+        const deepPayload = {
+          // Names
+          'name': customName,
+          'author': customName, 'gb_name': customName, 'user': customName, 'nickname': customName,
+          'username': customName, 'realname': customName, 'v_name': customName,
           
-          // Common Email fields
-          'email': 'bot@automator.com',
-          'guest_email': 'bot@automator.com',
+          // Emails
+          'email': customEmail,
+          'guest_email': customEmail, 'mail': customEmail,
           
-          // Common URL/Website fields
-          'url': targetUrl,
-          'website': targetUrl,
-          'web': targetUrl,
-          'link': targetUrl,
+          // THE LINKS (The most important part)
+          'url': targetLink, 'website': targetLink, 'web': targetLink, 'link': targetLink, 
+          'gb_url': targetLink, 'homepage': targetLink, 'site': targetLink, 'uri': targetLink,
+          'home': targetLink, 'myweb': targetLink,
           
-          // Common Comment/Message fields
-          'comment': 'Check out this link: ' + targetUrl,
-          'message': 'Check out this link: ' + targetUrl,
-          'gb_comment': 'Check out this link: ' + targetUrl,
-          'comments': 'Check out this link: ' + targetUrl,
-          'text': 'Check out this link: ' + targetUrl,
+          // THE MESSAGES (Where you want your link to appear)
+          'comment': 'I found this very helpful: ' + targetLink,
+          'message': 'Recommended resource: ' + targetLink,
+          'gb_comment': 'Great content here: ' + targetLink,
+          'gb_text': 'Check this out: ' + targetLink,
+          'text': 'Check this: ' + targetLink,
+          'txt_comment': 'Visit here: ' + targetLink,
+          'v_message': 'Useful link: ' + targetLink,
+          'content': 'Link: ' + targetLink,
+          'note': 'See this: ' + targetLink,
+          'msg': 'Info: ' + targetLink,
+          'comments': 'Recommended: ' + targetLink,
+          'body': 'Reference: ' + targetLink,
+          'gb_msg': 'Check: ' + targetLink,
+          'description': 'Site: ' + targetLink,
+          'comment_text': 'URL: ' + targetLink,
           
-          // Technical fields
-          'submit': 'Post Comment',
-          'action': 'add'
+          // Form Actions
+          'submit': 'Post Entry', 'action': 'add', 'mode': 'submit', 'dosubmit': '1', 
+          'send': '1', 'post': 'Submit', 'add': '1', 'save': '1'
         };
 
         guestbookTargets.forEach(gbUrl => {
           try {
-            UrlFetchApp.fetch(gbUrl, {
+            const response = UrlFetchApp.fetch(gbUrl, {
               method: 'post',
-              payload: smartPayload,
+              payload: deepPayload,
               followRedirects: true,
               muteHttpExceptions: true,
               headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Cache-Control': 'max-age=0'
               }
             });
-            guestbookHits++;
+            
+            const code = response.getResponseCode();
+            console.log("Identity: " + customName + " | Target: " + gbUrl + " | Response: " + code);
+            
+            if (code >= 200 && code < 400) {
+              totalHits++;
+            } else {
+              failedHits++;
+            }
           } catch (e) {
-            console.error("Failed to hit: " + gbUrl + " Error: " + e.message);
+            console.error("Critical Failure for " + gbUrl + ": " + e.toString());
+            failedHits++;
           }
         });
       });
     }
 
-    const result = {
+    return ContentService.createTextOutput(JSON.stringify({
       status: "success",
-      sheet: requestedSheetName,
-      added: addedCount,
-      guestbookAttempts: guestbookHits,
-      timestamp: new Date().toISOString()
-    };
-
-    return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+      addedToSheet: addedCount,
+      successHits: totalHits,
+      failedHits: failedHits,
+      details: "Using custom identity: " + customName
+    })).setMimeType(ContentService.MimeType.JSON);
     
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({

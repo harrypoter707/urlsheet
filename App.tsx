@@ -19,20 +19,21 @@ import BackendInstructions from './components/BackendInstructions';
 import WebhookGuide from './components/WebhookGuide';
 
 const App: React.FC = () => {
-  // State initialization with Persistence
   const [queue, setQueue] = useState<QueueItem[]>(() => {
-    const saved = localStorage.getItem('automator_queue_v3');
+    const saved = localStorage.getItem('automator_queue_v5');
     return saved ? JSON.parse(saved) : [];
   });
   
   const [config, setConfig] = useState<AutomatorConfig>(() => {
-    const saved = localStorage.getItem('automator_config_v3');
+    const saved = localStorage.getItem('automator_config_v5');
     return saved ? JSON.parse(saved) : {
       webhookUrl: '',
       batchSize: 5,
       intervalMinutes: 1,
       sheetName: 'Sheet1',
-      guestbookUrls: []
+      guestbookUrls: [],
+      customName: '',
+      customEmail: ''
     };
   });
 
@@ -52,19 +53,18 @@ const App: React.FC = () => {
   useEffect(() => { queueRef.current = queue; }, [queue]);
 
   useEffect(() => {
-    localStorage.setItem('automator_queue_v3', JSON.stringify(queue));
+    localStorage.setItem('automator_queue_v5', JSON.stringify(queue));
   }, [queue]);
 
   useEffect(() => {
-    localStorage.setItem('automator_config_v3', JSON.stringify(config));
+    localStorage.setItem('automator_config_v5', JSON.stringify(config));
   }, [config]);
 
-  // Tab Closure Protection for long-running tasks
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isProcessing) {
         e.preventDefault();
-        e.returnValue = 'Automation is currently active. Closing this tab will stop the process.';
+        e.returnValue = 'Automation is active. Closing will stop the queue.';
         return e.returnValue;
       }
     };
@@ -72,7 +72,6 @@ const App: React.FC = () => {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isProcessing]);
 
-  // Statistics Calculation Engine
   const stats: Statistics = useMemo(() => {
     const total = queue.length;
     const pending = queue.filter(q => q.status === 'pending').length;
@@ -97,19 +96,25 @@ const App: React.FC = () => {
   }, []);
 
   const testConnection = async () => {
-    if (!config.webhookUrl) return alert("Webhook URL required in Settings.");
+    if (!config.webhookUrl) return alert("Please enter your Webhook URL in Settings.");
     setIsTesting(true);
-    addLog("Testing communication with Google Sheet...");
+    addLog("Sending test request to Google Script...");
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+
       await fetch(config.webhookUrl, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ test: true, timestamp: new Date().toISOString() })
+        body: JSON.stringify({ test: true, timestamp: new Date().toISOString() }),
+        signal: controller.signal
       });
-      addLog("✅ Connection test sent. Verify your spreadsheet.");
+      
+      clearTimeout(timeout);
+      addLog("✅ Connection packet sent. (Note: Result is opaque due to CORS)");
     } catch (e) {
-      addLog("❌ Connection test failed. URL unreachable.");
+      addLog("❌ Test failed. Check URL or Internet connection.");
     } finally {
       setIsTesting(false);
     }
@@ -122,28 +127,19 @@ const App: React.FC = () => {
     const currentConfig = configRef.current;
     const currentQueue = queueRef.current;
 
-    if (!currentConfig.webhookUrl) {
-      addLog("Error: Missing Webhook URL.");
-      setIsProcessing(false);
-      isExecutingRef.current = false;
-      return;
-    }
-
     const pendingItems = currentQueue
       .filter(item => item.status === 'pending')
       .slice(0, currentConfig.batchSize);
     
     if (pendingItems.length === 0) {
-      addLog("All tasks in queue completed.");
+      addLog("Sequence complete. No pending items left.");
       setIsProcessing(false);
       setNextBatchTime(null);
-      setPausedTimeLeft(null);
       isExecutingRef.current = false;
       return;
     }
 
-    const targetSheet = (currentConfig.sheetName || 'Sheet1').trim();
-    addLog(`🚀 Sending Batch: ${pendingItems.length} URLs to Sheet + ${currentConfig.guestbookUrls.length} Guestbooks.`);
+    addLog(`📤 Processing Batch: ${pendingItems.length} URLs...`);
     
     setQueue(prev => prev.map(item => 
       pendingItems.some(p => p.id === item.id) ? { ...item, status: 'processing', guestbookStatus: 'processing' } : item
@@ -152,8 +148,10 @@ const App: React.FC = () => {
     try {
       const payload = {
         urls: pendingItems.map(p => p.url),
-        sheetName: targetSheet,
+        sheetName: (currentConfig.sheetName || 'Sheet1').trim(),
         guestbookUrls: currentConfig.guestbookUrls,
+        customName: (currentConfig.customName || 'Visitor').trim(),
+        customEmail: (currentConfig.customEmail || 'bot@gmail.com').trim(),
         timestamp: new Date().toISOString()
       };
 
@@ -178,35 +176,28 @@ const App: React.FC = () => {
           : item
       ));
       
-      addLog(`✅ Batch successful. Distributed URLs across ${guestCount} target guestbooks.`);
+      addLog(`✅ Batch successful. Identity used: ${payload.customName}.`);
 
-      const remainingPending = currentQueue.filter(q => q.status === 'pending').length - pendingItems.length;
-      
-      if (remainingPending > 0) {
+      const stillPending = queueRef.current.filter(q => q.status === 'pending').length;
+      if (stillPending > 0) {
         const waitMs = currentConfig.intervalMinutes * 60 * 1000;
-        const targetTime = Date.now() + waitMs;
-        setNextBatchTime(targetTime);
-        setPausedTimeLeft(null);
-        addLog(`⏳ Standing by: Next batch in ${currentConfig.intervalMinutes}m...`);
+        setNextBatchTime(Date.now() + waitMs);
+        addLog(`⏳ Waiting ${currentConfig.intervalMinutes}m for next batch...`);
         
         timerRef.current = setTimeout(() => {
           isExecutingRef.current = false;
           executeBatch();
         }, waitMs);
       } else {
-        addLog("🏁 Process Complete! Queue is empty.");
         setIsProcessing(false);
         setNextBatchTime(null);
-        setPausedTimeLeft(null);
         isExecutingRef.current = false;
       }
       
     } catch (error) {
-      addLog(`❌ Transmission failed. Verify script endpoint.`);
+      addLog(`❌ Batch failed. Stopping automation.`);
       setQueue(prev => prev.map(item => 
-        pendingItems.some(p => p.id === item.id) 
-          ? { ...item, status: 'failed', error: 'Connection Error' } 
-          : item
+        pendingItems.some(p => p.id === item.id) ? { ...item, status: 'failed', error: 'Network Error' } : item
       ));
       setIsProcessing(false);
       isExecutingRef.current = false;
@@ -217,7 +208,6 @@ const App: React.FC = () => {
     if (isProcessing) {
       if (!isExecutingRef.current) {
         if (pausedTimeLeft !== null && pausedTimeLeft > 0) {
-          addLog(`🔄 Resuming sequence...`);
           const newTargetTime = Date.now() + pausedTimeLeft;
           setNextBatchTime(newTargetTime);
           timerRef.current = setTimeout(() => {
@@ -233,8 +223,7 @@ const App: React.FC = () => {
         clearTimeout(timerRef.current);
         timerRef.current = null;
         if (nextBatchTime) {
-          const remaining = Math.max(0, nextBatchTime - Date.now());
-          setPausedTimeLeft(remaining);
+          setPausedTimeLeft(Math.max(0, nextBatchTime - Date.now()));
         }
       }
       isExecutingRef.current = false;
@@ -244,66 +233,71 @@ const App: React.FC = () => {
 
   const handleStart = () => {
     if (stats.pending === 0) return alert("Queue is empty. Import URLs first.");
-    if (!config.webhookUrl) return alert("Missing Webhook URL in Settings.");
+    if (!config.webhookUrl) return alert("Please enter your Google Script URL in Configuration.");
     setIsProcessing(true);
-    addLog("▶️ Automation started.");
+    addLog("▶️ Process engaged.");
   };
 
   const handlePause = () => {
     setIsProcessing(false);
-    addLog("⏸ Automation paused.");
+    addLog("⏸ Process paused.");
   };
 
   const handleReset = () => {
-    if (window.confirm("Delete all queue data and logs?")) {
+    if (window.confirm("This will clear your entire queue and settings. Continue?")) {
       setQueue([]);
       setIsProcessing(false);
       setLogs([]);
       setNextBatchTime(null);
       setPausedTimeLeft(null);
-      localStorage.removeItem('automator_queue_v3');
-      addLog("System reset triggered.");
+      localStorage.clear();
+      window.location.reload();
     }
   };
 
   const handleAddUrls = (urls: string[]) => {
     const existingUrls = new Set(queue.map(q => q.url));
-    const finalUrls = Array.from(new Set(urls.map(u => u.trim()))).filter(url => !existingUrls.has(url));
-    
-    const newItems: QueueItem[] = finalUrls.map(url => ({
-      id: Math.random().toString(36).substring(7),
-      url: url,
-      status: 'pending',
-      guestbookStatus: config.guestbookUrls.length > 0 ? 'pending' : undefined
-    }));
+    const newItems: QueueItem[] = urls
+      .filter(url => !existingUrls.has(url))
+      .map(url => ({
+        id: Math.random().toString(36).substring(7),
+        url: url,
+        status: 'pending',
+        guestbookStatus: config.guestbookUrls.length > 0 ? 'pending' : undefined
+      }));
+
+    if (newItems.length === 0) {
+      alert("All these URLs are already in your queue!");
+      return;
+    }
 
     setQueue(prev => [...prev, ...newItems]);
-    addLog(`📥 Imported ${finalUrls.length} new URLs.`);
+    addLog(`📥 Loaded ${newItems.length} unique URLs into queue.`);
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-indigo-100">
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 p-2.5 rounded-xl text-white shadow-lg">
+            <div className="bg-slate-900 p-2.5 rounded-xl text-white shadow-lg">
               <ClipboardList size={22} />
             </div>
             <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tight">SheetAutomator</h1>
+              <h1 className="text-xl font-black text-slate-900 tracking-tight">URL Automator</h1>
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${isProcessing ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></span>
                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                  {isProcessing ? 'Auto-Sequence Active' : 'Standby Mode'}
+                  {isProcessing ? 'Automatic Mode' : 'Ready'}
                 </p>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-            <button onClick={() => setActiveTab('automation')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === 'automation' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}>Monitor</button>
-            <button onClick={() => setActiveTab('guide')} className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all ${activeTab === 'guide' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}><HelpCircle size={14} />Setup</button>
-            <button onClick={() => setActiveTab('backend')} className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all ${activeTab === 'backend' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}><Code2 size={14} />Script</button>
+            <button onClick={() => setActiveTab('automation')} className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === 'automation' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}>Automation</button>
+            <button onClick={() => setActiveTab('guide')} className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all ${activeTab === 'guide' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}><HelpCircle size={14} />Setup Guide</button>
+            <button onClick={() => setActiveTab('backend')} className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all ${activeTab === 'backend' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-indigo-500'}`}><Code2 size={14} />Backend Code</button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -311,18 +305,18 @@ const App: React.FC = () => {
               <button 
                 onClick={testConnection} 
                 disabled={isTesting || !config.webhookUrl}
-                className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-indigo-600 font-bold text-xs bg-slate-100 hover:bg-indigo-50 rounded-xl transition-all disabled:opacity-50"
+                className="hidden sm:flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-indigo-600 font-bold text-xs bg-slate-100 hover:bg-indigo-50 rounded-xl transition-all disabled:opacity-50"
               >
                 <Activity size={14} />
                 {isTesting ? 'Testing...' : 'Test Connection'}
               </button>
             )}
             {!isProcessing ? (
-              <button onClick={handleStart} className="flex items-center gap-2 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md active:scale-95"><Play size={16} fill="currentColor" />Start Process</button>
+              <button onClick={handleStart} className="flex items-center gap-2 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md active:scale-95"><Play size={16} fill="currentColor" />Start</button>
             ) : (
               <button onClick={handlePause} className="flex items-center gap-2 px-6 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-all shadow-md active:scale-95"><Pause size={16} fill="currentColor" />Pause</button>
             )}
-            <button onClick={handleReset} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors" title="Reset All Data"><RotateCcw size={20} /></button>
+            <button onClick={handleReset} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors" title="Factory Reset"><RotateCcw size={20} /></button>
           </div>
         </div>
       </header>
@@ -330,19 +324,17 @@ const App: React.FC = () => {
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'automation' ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-1 space-y-8">
+            <div className="lg:col-span-1 space-y-6">
               <SetupForm config={config} setConfig={setConfig} onAddUrls={handleAddUrls} disabled={isProcessing} />
               <LogViewer logs={logs} />
             </div>
 
-            <div className="lg:col-span-2 space-y-8">
+            <div className="lg:col-span-2 space-y-6">
               <Dashboard stats={stats} isProcessing={isProcessing} nextBatchTime={nextBatchTime} pausedTimeLeft={pausedTimeLeft} intervalMinutes={config.intervalMinutes} />
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white sticky top-0 z-10">
-                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Link2 size={20} className="text-indigo-600" />Queue Management</h2>
-                  <div className="flex items-center gap-3">
-                    <span className="bg-indigo-50 text-indigo-700 text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider">{stats.pending} URL{stats.pending !== 1 ? 's' : ''} Remaining</span>
-                  </div>
+                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Link2 size={20} className="text-indigo-600" />Execution Queue</h2>
+                  <span className="bg-indigo-50 text-indigo-700 text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider">{stats.pending} URL{stats.pending !== 1 ? 's' : ''} Left</span>
                 </div>
                 <QueueList queue={queue} />
               </div>
