@@ -1,0 +1,8 @@
+
+{
+  "name": "URL Sheet Automator",
+  "description": "A powerful batch URL processor that automatically submits links to Google Sheets at scheduled intervals with real-time monitoring and queue management.",
+  "requestFramePermissions": [
+    "notifications"
+  ]
+}
