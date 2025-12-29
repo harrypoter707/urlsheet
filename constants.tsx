@@ -1,12 +1,11 @@
-
 export const GOOGLE_APPS_SCRIPT_TEMPLATE = `
 /**
- * ROBUST GOOGLE APPS SCRIPT WEB APP V2.5
+ * ROBUST GOOGLE APPS SCRIPT WEB APP V2.6
  * 
  * Features: 
- * 1. Intelligent Duplicate Check (Column B)
- * 2. Dynamic Tab Selection (Auto-creates if missing)
- * 3. Empty Sheet Handling
+ * 1. URL Only Mode (Pastes to Column A)
+ * 2. Intelligent Duplicate Check (Column A)
+ * 3. Dynamic Tab Selection (Auto-creates if missing)
  */
 
 function doPost(e) {
@@ -22,7 +21,7 @@ function doPost(e) {
     // Auto-create sheet if it doesn't exist
     if (!sheet) {
       sheet = spreadsheet.insertSheet(requestedSheetName);
-      sheet.appendRow(['Timestamp', 'URL']);
+      sheet.appendRow(['URL']); // Only URL header
     }
 
     const lastRow = sheet.getLastRow();
@@ -30,8 +29,8 @@ function doPost(e) {
     
     // Only attempt to read range if sheet has data
     if (lastRow > 0) {
-      // Get all values from Column B (URLs)
-      const range = sheet.getRange(1, 2, lastRow, 1);
+      // Get all values from Column A (URLs)
+      const range = sheet.getRange(1, 1, lastRow, 1);
       const values = range.getValues();
       existingUrls = values.map(row => row[0].toString().trim().toLowerCase());
     }
@@ -43,9 +42,10 @@ function doPost(e) {
       const cleanUrl = url.trim();
       const lowerUrl = cleanUrl.toLowerCase();
       
-      // Check for duplicates (case-insensitive)
+      // Check for duplicates (case-insensitive) in Column A
       if (existingUrls.indexOf(lowerUrl) === -1) {
-        sheet.appendRow([new Date(), cleanUrl]);
+        // ONLY append the URL (no timestamp)
+        sheet.appendRow([cleanUrl]);
         existingUrls.push(lowerUrl); 
         addedCount++;
       } else {
@@ -61,7 +61,8 @@ function doPost(e) {
       timestamp: new Date().toISOString()
     };
 
-    return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
     
   } catch (err) {
     console.error(err);
